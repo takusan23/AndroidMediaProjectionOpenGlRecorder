@@ -119,6 +119,7 @@ class InputSurface(
     suspend fun awaitIsNewFrameAvailable(): Boolean {
         return frameSyncMutex.withLock {
             if (isNewFrameAvailable) {
+                // onFrameAvailable が来るまで倒しておく
                 isNewFrameAvailable = false
                 // 描画すべきなので true
                 true
