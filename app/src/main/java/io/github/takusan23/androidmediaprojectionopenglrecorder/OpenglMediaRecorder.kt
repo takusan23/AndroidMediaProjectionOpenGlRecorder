@@ -1,6 +1,10 @@
 package io.github.takusan23.androidmediaprojectionopenglrecorder
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Environment
@@ -11,6 +15,7 @@ import io.github.takusan23.androidmediaprojectionopenglrecorder.opengl.InputSurf
 import io.github.takusan23.androidmediaprojectionopenglrecorder.opengl.TextureRenderer
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
@@ -22,6 +27,8 @@ class OpenglMediaRecorder(private val context: Context) {
     private var mediaRecorder: MediaRecorder? = null
     private var recordingFile: File? = null
     private var inputOpenGlSurface: InputSurface? = null
+
+    var isDrawNoSignal = false
 
     val openGlTextureSurface: Surface?
         get() = inputOpenGlSurface?.drawSurface
@@ -59,6 +66,20 @@ class OpenglMediaRecorder(private val context: Context) {
         inputOpenGlSurface = InputSurface(mediaRecorder?.surface!!, TextureRenderer())
         inputOpenGlSurface?.makeCurrent()
         inputOpenGlSurface?.createRender(videoWidth, videoHeight)
+
+        // NoSignal 用画像
+        val bitmap = Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888).also { bitmap ->
+            val canvas = Canvas(bitmap)
+            val paint = Paint().apply {
+                color = Color.WHITE
+                textSize = 50f
+            }
+
+            canvas.drawColor(Color.BLACK)
+            canvas.drawText("指定したアプリは今画面に写ってません。", 100f, 100f, paint)
+            canvas.drawText("戻ってきたら再度映ります。", 100f, 200f, paint)
+        }
+        inputOpenGlSurface?.setNoSignalImage(bitmap)
     }
 
     /**
@@ -69,17 +90,23 @@ class OpenglMediaRecorder(private val context: Context) {
         mediaRecorder?.start()
         while (isActive) {
             try {
-                // 映像フレームが来ていれば OpenGL のテクスチャを更新
-                val isNewFrameAvailable = inputOpenGlSurface?.awaitIsNewFrameAvailable()
-                // 描画する
-                if (isNewFrameAvailable == true) {
-                    inputOpenGlSurface?.makeCurrent()
-                    inputOpenGlSurface?.updateTexImage()
-                    inputOpenGlSurface?.drawImage()
+                if (isDrawNoSignal) {
+                    inputOpenGlSurface?.setDrawNoSignalImage()
                     inputOpenGlSurface?.swapBuffers()
+                    delay(16) // 60fps が 16ミリ秒 らしいので適当に待つ
+                } else {
+                    // 映像フレームが来ていれば OpenGL のテクスチャを更新
+                    val isNewFrameAvailable = inputOpenGlSurface?.awaitIsNewFrameAvailable()
+                    // 描画する
+                    if (isNewFrameAvailable == true) {
+                        inputOpenGlSurface?.makeCurrent()
+                        inputOpenGlSurface?.updateTexImage()
+                        inputOpenGlSurface?.drawImage()
+                        inputOpenGlSurface?.swapBuffers()
+                    }
                 }
             } catch (e: Exception) {
-                e.printStackTrace(System.out)
+                e.printStackTrace()
             }
         }
     }
@@ -87,6 +114,7 @@ class OpenglMediaRecorder(private val context: Context) {
     /** 終了時。動画ファイルが端末の動画フォルダに保存されます。 */
     suspend fun stopRecordAndSaveVideoFolder() {
         // 録画停止
+        inputOpenGlSurface?.release()
         mediaRecorder?.stop()
         mediaRecorder?.release()
 

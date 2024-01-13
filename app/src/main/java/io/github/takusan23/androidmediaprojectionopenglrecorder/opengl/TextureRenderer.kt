@@ -16,9 +16,11 @@
 
 package io.github.takusan23.androidmediaprojectionopenglrecorder.opengl
 
+import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
+import android.opengl.GLUtils
 import android.opengl.Matrix
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -39,7 +41,14 @@ class TextureRenderer {
     private var maTextureHandle = 0
     private val rotationAngle = 0
 
-    var textureId = -1234567
+    // Uniform 変数へのハンドル
+    private var uNoSignalImageTextureHandle = 0
+    private var uTextureHandle = 0
+    private var uNoSignalFlagHandle = 0
+
+    var screenRecordTextureId = -1234567
+        private set
+    var noSignalImageTextureId = -1234567
         private set
 
     init {
@@ -48,13 +57,47 @@ class TextureRenderer {
         Matrix.setIdentityM(mSTMatrix, 0)
     }
 
+    fun setNoSignalImage(bitmap: Bitmap) {
+        GLES20.glUseProgram(mProgram)
+        checkGlError("glUseProgram")
+        // NoSignal テクスチャユニットは GLES20.GL_TEXTURE1 なので 1
+        GLES20.glUniform1i(uNoSignalImageTextureHandle, 1)
+        checkGlError("glUniform1i uNoSignalImageTextureHandle")
+        // テクスチャを初期化
+        // 第二引数の 1 って何、、、（GLES20.GL_TEXTURE1 だから？）
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE1)
+        checkGlError("glActiveTexture GL_TEXTURE1")
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, noSignalImageTextureId)
+        checkGlError("glBindTexture noSignalImageTextureId")
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
+        checkGlError("GLUtils.texImage2D noSignalImageTextureId")
+    }
+
+    fun setDrawNoSignalImageFlag() {
+        GLES20.glUseProgram(mProgram)
+        checkGlError("glUseProgram")
+        // NoSignal を描画する
+        GLES20.glUniform1i(uNoSignalFlagHandle, 1)
+        checkGlError("glUniform1i uNoSignalFlagHandle")
+        // 描画する
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        checkGlError("glDrawArrays")
+        GLES20.glFinish()
+    }
+
     fun drawFrame(st: SurfaceTexture) {
         checkGlError("onDrawFrame start")
         st.getTransformMatrix(mSTMatrix)
         GLES20.glUseProgram(mProgram)
         checkGlError("glUseProgram")
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
+        // SurfaceTexture テクスチャユニットは GLES20.GL_TEXTURE0 なので 0
+        GLES20.glUniform1i(uTextureHandle, 0)
+        checkGlError("glUniform1i uTextureHandle")
+        // NoSignal ではなく SurfaceTexture を描画する
+        GLES20.glUniform1i(uNoSignalFlagHandle, 0)
+        checkGlError("glUniform1i uNoSignalFlagHandle")
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, screenRecordTextureId)
         mTriangleVertices.position(TRIANGLE_VERTICES_DATA_POS_OFFSET)
         GLES20.glVertexAttribPointer(maPositionHandle, 3, GLES20.GL_FLOAT, false, TRIANGLE_VERTICES_DATA_STRIDE_BYTES, mTriangleVertices)
         checkGlError("glVertexAttribPointer maPosition")
@@ -97,16 +140,33 @@ class TextureRenderer {
         if (muSTMatrixHandle == -1) {
             throw RuntimeException("Could not get attrib location for uSTMatrix")
         }
-        val textures = IntArray(1)
-        GLES20.glGenTextures(1, textures, 0)
-        textureId = textures[0]
-        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
-        checkGlError("glBindTexture mTextureID")
+        val textures = IntArray(2)
+        GLES20.glGenTextures(2, textures, 0)
+
+        screenRecordTextureId = textures[0]
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, screenRecordTextureId)
+        checkGlError("glBindTexture screenRecordTextureId")
         GLES20.glTexParameterf(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST.toFloat())
         GLES20.glTexParameterf(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR.toFloat())
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
         checkGlError("glTexParameter")
+
+        noSignalImageTextureId = textures[1]
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, noSignalImageTextureId)
+        checkGlError("glBindTexture noSignalImageTextureId")
+
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+
+        // OpenGL の Uniform変数 へアクセスするハンドル取得
+        uTextureHandle = GLES20.glGetUniformLocation(mProgram, "sTexture")
+        checkGlError("glGetUniformLocation uTextureHandle")
+        uNoSignalImageTextureHandle = GLES20.glGetUniformLocation(mProgram, "uNoSignalImage")
+        checkGlError("glGetUniformLocation uNoSignalImageTextureHandle")
+        uNoSignalFlagHandle = GLES20.glGetUniformLocation(mProgram, "uDrawNoSignal")
+        checkGlError("glGetUniformLocation uNoSignalFlagHandle")
+
         Matrix.setIdentityM(mMVPMatrix, 0)
         // if (rotationAngle != 0) {
         //     Matrix.rotateM(mMVPMatrix, 0, rotationAngle, 0, 0, 1)
@@ -199,8 +259,17 @@ void main() {
 precision mediump float;
 varying vec2 vTextureCoord;
 uniform samplerExternalOES sTexture;
+uniform sampler2D uNoSignalImage;
+
+// 映像を描画するのか、Canvasを描画するのかのフラグ
+uniform int uDrawNoSignal;
+
 void main() {
-  gl_FragColor = texture2D(sTexture, vTextureCoord);
+  if (bool(uDrawNoSignal)) {
+    gl_FragColor = texture2D(uNoSignalImage, vTextureCoord);
+  } else {
+    gl_FragColor = texture2D(sTexture, vTextureCoord);  
+  }
 }
 """
     }

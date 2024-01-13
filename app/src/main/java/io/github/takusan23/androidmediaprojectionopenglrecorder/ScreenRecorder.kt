@@ -59,11 +59,13 @@ class ScreenRecorder(
                 override fun onCapturedContentResize(width: Int, height: Int) {
                     super.onCapturedContentResize(width, height)
                     // サイズが変化したら呼び出される
+                    // do nothing
                 }
 
                 override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
                     super.onCapturedContentVisibilityChanged(isVisible)
                     // 録画中の画面の表示・非表示が切り替わったら呼び出される
+                    openglMediaRecorder?.isDrawNoSignal = !isVisible
                 }
 
                 override fun onStop() {
