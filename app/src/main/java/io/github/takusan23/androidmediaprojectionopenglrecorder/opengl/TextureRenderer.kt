@@ -42,13 +42,13 @@ class TextureRenderer {
     private val rotationAngle = 0
 
     // Uniform 変数へのハンドル
-    private var uNoSignalImageTextureHandle = 0
+    private var uAltImageTextureHandle = 0
     private var uTextureHandle = 0
-    private var uNoSignalFlagHandle = 0
+    private var uDrawAltImageHandle = 0
 
     var screenRecordTextureId = -1234567
         private set
-    var noSignalImageTextureId = -1234567
+    var altImageTextureId = -1234567
         private set
 
     init {
@@ -57,34 +57,37 @@ class TextureRenderer {
         Matrix.setIdentityM(mSTMatrix, 0)
     }
 
-    fun setNoSignalImage(bitmap: Bitmap) {
+    /** [drawAltImage] で表示する画像の設定 */
+    fun setAltImageTexture(bitmap: Bitmap) {
         GLES20.glUseProgram(mProgram)
         checkGlError("glUseProgram")
-        // NoSignal テクスチャユニットは GLES20.GL_TEXTURE1 なので 1
-        GLES20.glUniform1i(uNoSignalImageTextureHandle, 1)
-        checkGlError("glUniform1i uNoSignalImageTextureHandle")
+        // AltImage テクスチャユニットは GLES20.GL_TEXTURE1 なので 1
+        GLES20.glUniform1i(uAltImageTextureHandle, 1)
+        checkGlError("glUniform1i uAltImageTextureHandle")
         // テクスチャを初期化
         // 第二引数の 1 って何、、、（GLES20.GL_TEXTURE1 だから？）
         GLES20.glActiveTexture(GLES20.GL_TEXTURE1)
         checkGlError("glActiveTexture GL_TEXTURE1")
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, noSignalImageTextureId)
-        checkGlError("glBindTexture noSignalImageTextureId")
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, altImageTextureId)
+        checkGlError("glBindTexture altImageTextureId")
         GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
-        checkGlError("GLUtils.texImage2D noSignalImageTextureId")
+        checkGlError("GLUtils.texImage2D altImageTextureId")
     }
 
-    fun setDrawNoSignalImageFlag() {
+    /** 録画映像の代わりに代替画像を描画する */
+    fun drawAltImage() {
         GLES20.glUseProgram(mProgram)
         checkGlError("glUseProgram")
-        // NoSignal を描画する
-        GLES20.glUniform1i(uNoSignalFlagHandle, 1)
-        checkGlError("glUniform1i uNoSignalFlagHandle")
+        // AltImage を描画する
+        GLES20.glUniform1i(uDrawAltImageHandle, 1)
+        checkGlError("glUniform1i uDrawAltImageHandle")
         // 描画する
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
         checkGlError("glDrawArrays")
         GLES20.glFinish()
     }
 
+    /** 画面録画の映像を描画する */
     fun drawFrame(st: SurfaceTexture) {
         checkGlError("onDrawFrame start")
         st.getTransformMatrix(mSTMatrix)
@@ -94,9 +97,9 @@ class TextureRenderer {
         // SurfaceTexture テクスチャユニットは GLES20.GL_TEXTURE0 なので 0
         GLES20.glUniform1i(uTextureHandle, 0)
         checkGlError("glUniform1i uTextureHandle")
-        // NoSignal ではなく SurfaceTexture を描画する
-        GLES20.glUniform1i(uNoSignalFlagHandle, 0)
-        checkGlError("glUniform1i uNoSignalFlagHandle")
+        // AltImage ではなく SurfaceTexture を描画する
+        GLES20.glUniform1i(uDrawAltImageHandle, 0)
+        checkGlError("glUniform1i uDrawAltImageHandle")
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, screenRecordTextureId)
         mTriangleVertices.position(TRIANGLE_VERTICES_DATA_POS_OFFSET)
         GLES20.glVertexAttribPointer(maPositionHandle, 3, GLES20.GL_FLOAT, false, TRIANGLE_VERTICES_DATA_STRIDE_BYTES, mTriangleVertices)
@@ -115,6 +118,7 @@ class TextureRenderer {
         GLES20.glFinish()
     }
 
+    /** シェーダーのコンパイルとかする */
     fun surfaceCreated() {
         mProgram = createProgram(VERTEX_SHADER, FRAGMENT_SHADER)
         if (mProgram == 0) {
@@ -152,9 +156,9 @@ class TextureRenderer {
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
         checkGlError("glTexParameter")
 
-        noSignalImageTextureId = textures[1]
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, noSignalImageTextureId)
-        checkGlError("glBindTexture noSignalImageTextureId")
+        altImageTextureId = textures[1]
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, altImageTextureId)
+        checkGlError("glBindTexture altImageTextureId")
 
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
@@ -162,10 +166,10 @@ class TextureRenderer {
         // OpenGL の Uniform変数 へアクセスするハンドル取得
         uTextureHandle = GLES20.glGetUniformLocation(mProgram, "sTexture")
         checkGlError("glGetUniformLocation uTextureHandle")
-        uNoSignalImageTextureHandle = GLES20.glGetUniformLocation(mProgram, "uNoSignalImage")
-        checkGlError("glGetUniformLocation uNoSignalImageTextureHandle")
-        uNoSignalFlagHandle = GLES20.glGetUniformLocation(mProgram, "uDrawNoSignal")
-        checkGlError("glGetUniformLocation uNoSignalFlagHandle")
+        uAltImageTextureHandle = GLES20.glGetUniformLocation(mProgram, "uAltImage")
+        checkGlError("glGetUniformLocation uAltImageTextureHandle")
+        uDrawAltImageHandle = GLES20.glGetUniformLocation(mProgram, "uDrawAltImage")
+        checkGlError("glGetUniformLocation uDrawAltImageHandle")
 
         Matrix.setIdentityM(mMVPMatrix, 0)
         // if (rotationAngle != 0) {
@@ -259,14 +263,14 @@ void main() {
 precision mediump float;
 varying vec2 vTextureCoord;
 uniform samplerExternalOES sTexture;
-uniform sampler2D uNoSignalImage;
+uniform sampler2D uAltImage;
 
-// 映像を描画するのか、Canvasを描画するのかのフラグ
-uniform int uDrawNoSignal;
+// 映像を描画するのか、画像を表示するのか
+uniform int uDrawAltImage;
 
 void main() {
-  if (bool(uDrawNoSignal)) {
-    gl_FragColor = texture2D(uNoSignalImage, vTextureCoord);
+  if (bool(uDrawAltImage)) {
+    gl_FragColor = texture2D(uAltImage, vTextureCoord);
   } else {
     gl_FragColor = texture2D(sTexture, vTextureCoord);  
   }

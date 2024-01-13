@@ -65,7 +65,7 @@ class ScreenRecorder(
                 override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
                     super.onCapturedContentVisibilityChanged(isVisible)
                     // 録画中の画面の表示・非表示が切り替わったら呼び出される
-                    openglMediaRecorder?.isDrawNoSignal = !isVisible
+                    openglMediaRecorder?.isDrawAltImage = !isVisible
                 }
 
                 override fun onStop() {

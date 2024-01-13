@@ -28,8 +28,10 @@ class OpenglMediaRecorder(private val context: Context) {
     private var recordingFile: File? = null
     private var inputOpenGlSurface: InputSurface? = null
 
-    var isDrawNoSignal = false
+    /** 映像の代わりに代替画像を表示する場合は true */
+    var isDrawAltImage = false
 
+    /** OpenGL にテクスチャとして渡すための Surface */
     val openGlTextureSurface: Surface?
         get() = inputOpenGlSurface?.drawSurface
 
@@ -67,8 +69,8 @@ class OpenglMediaRecorder(private val context: Context) {
         inputOpenGlSurface?.makeCurrent()
         inputOpenGlSurface?.createRender(videoWidth, videoHeight)
 
-        // NoSignal 用画像
-        val bitmap = Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888).also { bitmap ->
+        // 代替画像
+        val altImageBitmap = Bitmap.createBitmap(videoWidth, videoHeight, Bitmap.Config.ARGB_8888).also { bitmap ->
             val canvas = Canvas(bitmap)
             val paint = Paint().apply {
                 color = Color.WHITE
@@ -77,9 +79,9 @@ class OpenglMediaRecorder(private val context: Context) {
 
             canvas.drawColor(Color.BLACK)
             canvas.drawText("指定したアプリは今画面に写ってません。", 100f, 100f, paint)
-            canvas.drawText("戻ってきたら再度映ります。", 100f, 200f, paint)
+            canvas.drawText("戻ってきたら映像が再開されます。", 100f, 200f, paint)
         }
-        inputOpenGlSurface?.setNoSignalImage(bitmap)
+        inputOpenGlSurface?.setAltImageTexture(altImageBitmap)
     }
 
     /**
@@ -90,8 +92,8 @@ class OpenglMediaRecorder(private val context: Context) {
         mediaRecorder?.start()
         while (isActive) {
             try {
-                if (isDrawNoSignal) {
-                    inputOpenGlSurface?.setDrawNoSignalImage()
+                if (isDrawAltImage) {
+                    inputOpenGlSurface?.drawAltImage()
                     inputOpenGlSurface?.swapBuffers()
                     delay(16) // 60fps が 16ミリ秒 らしいので適当に待つ
                 } else {

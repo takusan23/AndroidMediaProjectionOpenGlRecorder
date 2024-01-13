@@ -150,12 +150,14 @@ class InputSurface(
         checkEglError("eglPresentationTimeANDROID")
     }
 
-    fun setNoSignalImage(bitmap: Bitmap) {
-        textureRenderer.setNoSignalImage(bitmap)
+    /** [drawAltImage] で表示する画像を設定する */
+    fun setAltImageTexture(bitmap: Bitmap) {
+        textureRenderer.setAltImageTexture(bitmap)
     }
 
-    fun setDrawNoSignalImage() {
-        textureRenderer.setDrawNoSignalImageFlag()
+    /** 映像の代わりに代替画像を描画する */
+    fun drawAltImage() {
+        textureRenderer.drawAltImage()
     }
 
     /**
